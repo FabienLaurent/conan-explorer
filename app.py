@@ -20,23 +20,14 @@ data = get_all_info()
 
 @app.route('/')
 def index():
-    return render_template('index.html', data=data)
+    return render_template('index.html', data=data,searchTerm="")
 
 @app.route('/', methods=['POST'])
 def my_form_post():
-    text = request.form['text']
-    
-    if text:
-        new_data = []
-        for entry in data:
-            if text.lower() in entry['text'].lower():
-                new_data.append(entry)
-    else:
-        new_data = data
+    text = request.form['search']
+    return render_template('index.html', data=data,searchTerm=text)
 
-    return render_template('index.html', data=new_data)
-
-AutoIndex(app, browse_root="/home/fabien")    
+AutoIndex(app, browse_root="/")    
 
 if __name__ == "__main__":
     app.run(debug=True)

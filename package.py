@@ -30,11 +30,11 @@ class Reference:
                     self.packages.append(Package(p))
         
     def info_to_tree(self):
-        tmp = dict_to_tree(self.infos)
-        return {'text':'infos','backColor':'#55BB55','nodes':tmp}
+        tmp = dict_to_tree(self.infos,keys_to_ignore=["id"])
+        return {'text':'infos','backColor':'#77DD77','nodes':tmp}
 
     def to_treeview(self):
-        return {'text':self.ref,'nodes':[self.info_to_tree()] + [p.to_treeview() for p in self.packages]}
+        return {'text':self.ref,'state.expanded':False,'nodes':[self.info_to_tree()] + [p.to_treeview() for p in self.packages]}
 
 def dict_to_tree(info: dict,keys_to_ignore=[]):
     out = []
@@ -48,7 +48,13 @@ def dict_to_tree(info: dict,keys_to_ignore=[]):
         else:
             tmp = {'text': f"{k} = {v}"}
             if k.lower() == "url":
-                tmp['href']=v
+                tmp['href'] = v
+            if isinstance(v, str):
+                if v.startswith("http"):
+                    tmp['href'] = v
+                if os.path.isdir(v) or os.path.isfile(v):
+                    tmp['href'] = f'http://127.0.0.1:5000/{v}'
+                
             out.append(tmp)
     return out
 

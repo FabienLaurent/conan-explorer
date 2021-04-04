@@ -5,13 +5,15 @@
     <link href="{{ url_for('static', filename='bootstrap-treeview/css/bootstrap-treeview.min.css') }}" rel="stylesheet">
   </head>
   <body>
-    <form method="POST">
-      <input name="text">
-      <input type="submit">
-  </form>
 
     {% block page_body %}
-      <div id="tree"></div>
+    <form method="POST">
+      <div class = "form-group">
+        <input type="text" name = "search">
+        <input class="btn btn-primary" type="submit" value="submit">
+      </div>      
+    </form>
+    <div id="tree"></div>
     {% endblock %}
 
     <script src="{{ url_for('static', filename='js/jquery-3.4.1.min.js') }}" type="text/javascript"></script>
@@ -22,8 +24,15 @@
         $(function() {
           $('#tree').treeview({
             data: JSON.parse('{{ data|tojson }}'),
-            enableLinks: true
-          })
+            enableLinks: true,
+            searchEnabled: true
+          });
+          $('#tree').treeview('collapseAll', { silent: true });
+          $('#tree').treeview('search',['{{searchTerm}}', {
+            ignoreCase: true,     // case insensitive
+            exactMatch: false,    // like or equals
+            revealResults: true,  // reveal matching nodes
+          }]);          
         })
     </script>
 
