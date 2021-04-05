@@ -8,7 +8,9 @@ from functools import reduce
 def call_conan(*args):
     out = {}
     tmp = tempfile.mktemp()
-    subprocess.run(["conan"] + list(args) + ["--json", tmp])
+    cmd = ["conan"] + list(args) + ["--json", tmp]
+    ic(' '.join(cmd))
+    subprocess.run(cmd)
     
     with open(tmp, "r") as f:
         out = json.load(f)
@@ -20,7 +22,6 @@ class Reference:
     def __init__(self, infos: dict):
         self.ref = infos['recipe']['id']
         self.get_packages()
-        self.infos = call_conan("info","--paths",self.ref)[0]
         
     def get_packages(self):
         infos = call_conan("search", self.ref)
@@ -28,53 +29,32 @@ class Reference:
         for r in infos['results']:
             for i in r['items']:
                 for p in i['packages']:
-                    self.packages.append(Package(p))
-        common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.infos for p in self.packages])
-        [p.substract_common_infos(common_infos) for p in self.packages]
-
-    def info_to_tree(self):
-        tmp = dict_to_tree(self.infos,keys_to_ignore=["id"])
-        return {'text':'infos','backColor':'#77DD77','nodes':tmp}
+                    self.packages.append(Package(p,self.ref))
+        common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.base_info for p in self.packages])
+        [p.update_infos(common_infos) for p in self.packages]
 
     def to_treeview(self):
-        return {'text':self.ref,'state.expanded':False,'nodes':[self.info_to_tree()] + [p.to_treeview() for p in self.packages]}
-
-def dict_to_tree(info: dict,keys_to_ignore=[]):
-    out = []
-    for k, v in info.items():
-        if k in keys_to_ignore:
-            continue
-        if not v:
-            continue
-        if isinstance(v, dict):
-            out.append({'text': str(k), 'nodes': dict_to_tree(v)})
-        else:
-            tmp = {'text': f"{k} = {v}"}
-            if k.lower() == "url":
-                tmp['href'] = v
-            if isinstance(v, str):
-                if v.startswith("http"):
-                    tmp['href'] = v
-                if os.path.isdir(v) or os.path.isfile(v):
-                    tmp['href'] = f'http://127.0.0.1:5000/{v}'
-                
-            out.append(tmp)
-    return out
+        return {'text':self.ref,'state.expanded':False,'nodes': [p.to_treeview() for p in self.packages]}
 
 class Package:
-    def __init__(self, infos: dict):
+    def __init__(self, infos: dict, reference: str):
+        self.ref = reference
         self.id = infos['id']
-        self.infos = infos
+        self.base_info = infos
         self.unique_infos = {}
         self.name = self.id
-        assert isinstance(self.infos,dict)
+        self.extra_info={}
 
-    def to_treeview(self):
-        return {'text': self.name, 'nodes': dict_to_tree(self.infos)}
+    def to_treeview(self):        
+        base_info_txt = dict_to_tree(self.base_info, backColor='#AADDAA')
+        extra_info_txt = dict_to_tree(self.extra_info)
+        common = {'text': self.name, 'nodes': base_info_txt+ extra_info_txt}
+        ic(common)
+        return(common)
         
-    def substract_common_infos(self, common: dict):
+    def update_infos(self, common: dict):
         assert isinstance(common,dict)
-        _, self.unique_infos, _ = dictdiff(self.infos, common)
+        _, self.unique_infos, _ = dictdiff(self.base_info, common)
         
         def info_to_str(to_analyze: dict):
             name = ""
@@ -89,11 +69,25 @@ class Package:
 
         self.name = info_to_str(self.unique_infos)
         if not (self.name):
-            self.name = info_to_str(self.infos)
+            self.name = info_to_str(self.base_info)
         if not (self.name):
             self.name = self.id
 
-def dictdiff(d1, d2, only_common=False):
+        def construct_args(key):
+            if opts := self.base_info.get(key):
+                for k, v in opts.items():
+                    if v:
+                        return [f"-{key[0]}",f"{k}={v}"]
+            return []
+
+        args = construct_args('options')
+        if not args:
+            args = construct_args('settings')
+        
+        self.extra_info = call_conan("info","--paths",self.ref,*args)[0]
+        
+
+def dictdiff(d1, d2, only_common=False):    
     only1 = {}
     only2 = {}
     common = {}
@@ -124,4 +118,27 @@ def dictdiff(d1, d2, only_common=False):
     if only_common:
         return common
     else:
-        return (common,only1,only2)
+        return (common, only1, only2)
+        
+    
+def dict_to_tree(info: dict,keys_to_ignore=[],**kwargs):
+    out = []
+    for k, v in info.items():
+        if k in keys_to_ignore:
+            continue
+        if not v:
+            continue
+        if isinstance(v, dict):
+            out.append({'text': str(k), 'nodes': dict_to_tree(v,**kwargs),**kwargs})
+        else:
+            tmp = {'text': f"{k} = {v}"}
+            if k.lower() == "url":
+                tmp['href'] = v
+            if isinstance(v, str):
+                if v.startswith("http"):
+                    tmp['href'] = v
+                if os.path.isdir(v) or os.path.isfile(v):
+                    tmp['href'] = f'http://127.0.0.1:5000/{v}'
+            tmp = {**tmp,**kwargs}
+            out.append(tmp)
+    return out        
