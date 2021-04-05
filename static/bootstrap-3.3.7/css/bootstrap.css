@@ -4274,7 +4274,7 @@ select[multiple].input-group-sm > .input-group-btn > .btn {
 .navbar-brand {
   float: left;
   height: 50px;
-  padding: 15px 15px;
+  padding: 5px 5px;
   font-size: 18px;
   line-height: 20px;
 }
@@ -4912,8 +4912,8 @@ a.label:focus {
 .badge {
   display: inline-block;
   min-width: 10px;
-  padding: 3px 7px;
-  font-size: 12px;
+  padding: 2px 2px;
+  font-size: 10px;
   font-weight: bold;
   line-height: 1;
   color: #fff;
@@ -5248,9 +5248,9 @@ a.thumbnail.active {
 .list-group-item {
   position: relative;
   display: block;
-  padding: 10px 15px;
+  padding: 0px 15px;
   margin-bottom: -1px;
-  background-color: #fff;
+  background-color: rgb(180, 180, 180);
   border: 1px solid #ddd;
 }
 .list-group-item:first-child {

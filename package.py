@@ -3,6 +3,7 @@ import subprocess
 import json
 import os
 from icecream import ic
+from functools import reduce
 
 def call_conan(*args):
     out = {}
@@ -28,7 +29,9 @@ class Reference:
             for i in r['items']:
                 for p in i['packages']:
                     self.packages.append(Package(p))
-        
+        common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.infos for p in self.packages])
+        [p.substract_common_infos(common_infos) for p in self.packages]
+
     def info_to_tree(self):
         tmp = dict_to_tree(self.infos,keys_to_ignore=["id"])
         return {'text':'infos','backColor':'#77DD77','nodes':tmp}
@@ -62,9 +65,63 @@ class Package:
     def __init__(self, infos: dict):
         self.id = infos['id']
         self.infos = infos
+        self.unique_infos = {}
+        self.name = self.id
+        assert isinstance(self.infos,dict)
 
     def to_treeview(self):
-        return {'text':self.id,'nodes':dict_to_tree(self.infos,keys_to_ignore=["id"])}
+        return {'text': self.name, 'nodes': dict_to_tree(self.infos)}
+        
+    def substract_common_infos(self, common: dict):
+        assert isinstance(common,dict)
+        _, self.unique_infos, _ = dictdiff(self.infos, common)
+        
+        def info_to_str(to_analyze: dict):
+            name = ""
+            for k, v in to_analyze.items():
+                if not v or k=='id':
+                    continue
+                if k in ['requires','options','settings']:
+                    name += f"{k[0]}:{v} "
+                else:
+                    name += f"{k}:{v} "
+            return name
 
+        self.name = info_to_str(self.unique_infos)
+        if not (self.name):
+            self.name = info_to_str(self.infos)
+        if not (self.name):
+            self.name = self.id
 
-
+def dictdiff(d1, d2, only_common=False):
+    only1 = {}
+    only2 = {}
+    common = {}
+    if not only_common:
+        for k in set(d1.keys()) - set(d2.keys()):
+            only1[k] = d1[k]
+        for k in set(d2.keys()) - set(d1.keys()):
+            only2[k] = d2[k]
+    for k in set(d1.keys()).intersection(set(d2.keys())):
+        if type(d1[k]) != type(d2[k]) and (not only_common):
+            only1[k] = d1[k]
+            only2[k] = d2[k]
+        elif isinstance(d1[k], dict):
+            if only_common:
+                common[k] = dictdiff(d1[k], d2[k], True)
+            else:
+                common[k], only1[k], only2[k] = dictdiff(d1[k], d2[k],False)
+        elif isinstance(d1[k], list):
+            only1[k] = list(set(d1[k]) - set(d2[k]))
+            only2[k] = list(set(d2[k]) - set(d1[k]))
+            common[k] = list(set(d2[k]).intersection(set(d1[k])))
+        elif d1[k] == d2[k]:
+            common[k] = d1[k]
+        else:
+            only1[k] = d1[k]
+            only2[k] = d2[k]
+    
+    if only_common:
+        return common
+    else:
+        return (common,only1,only2)
