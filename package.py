@@ -17,7 +17,6 @@ def call_conan(*args):
     os.remove(tmp)
     return out
 
-
 class Reference:
     def __init__(self, infos: dict):
         self.ref = infos['recipe']['id']
@@ -46,10 +45,9 @@ class Package:
         self.extra_info={}
 
     def to_treeview(self):        
-        base_info_txt = dict_to_tree(self.base_info, backColor='#AADDAA')
+        base_info_txt = dict_to_tree(self.base_info, backColor='#CCFFCC')
         extra_info_txt = dict_to_tree(self.extra_info)
         common = {'text': self.name, 'nodes': base_info_txt+ extra_info_txt}
-        ic(common)
         return(common)
         
     def update_infos(self, common: dict):
@@ -72,6 +70,8 @@ class Package:
             self.name = info_to_str(self.base_info)
         if not (self.name):
             self.name = self.id
+        
+        self.name = self.name.replace("'","")
 
         def construct_args(key):
             if opts := self.base_info.get(key):
@@ -139,6 +139,21 @@ def dict_to_tree(info: dict,keys_to_ignore=[],**kwargs):
                     tmp['href'] = v
                 if os.path.isdir(v) or os.path.isfile(v):
                     tmp['href'] = f'http://127.0.0.1:5000/{v}'
+
+            color_node(v,tmp)
             tmp = {**tmp,**kwargs}
             out.append(tmp)
-    return out        
+    return out
+    
+def color_node(v, tmp):
+    if 'href' in tmp.keys():
+        tmp['color'] = '#0000FF'
+    elif isinstance(v, bool):
+        tmp['color'] = '#880000'
+    elif isinstance(v, str):
+        tmp['color'] = '#004433'
+    elif isinstance(v, list):
+        tmp['color'] = '#008800'        
+    else:
+        ic(type(v))
+
