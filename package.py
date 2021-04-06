@@ -4,36 +4,48 @@ import json
 import os
 from icecream import ic
 from functools import reduce
-
+import pdb
 def call_conan(*args):
     out = {}
     tmp = tempfile.mktemp()
     cmd = ["conan"] + list(args) + ["--json", tmp]
-    ic(' '.join(cmd))
-    subprocess.run(cmd)
-    
-    with open(tmp, "r") as f:
-        out = json.load(f)
-    os.remove(tmp)
+    subprocess.call(cmd, stdout=open(os.devnull, 'wb'))
+    if not os.path.isfile(tmp):
+        return {'error':'conan info failed'}
+    else:    
+        with open(tmp, "r") as f:
+            out = json.load(f)
+        os.remove(tmp)
     return out
 
 class Reference:
     def __init__(self, infos: dict):
         self.ref = infos['recipe']['id']
+        self.inspect = {}
         self.get_packages()
         
     def get_packages(self):
         infos = call_conan("search", self.ref)
-        self.packages = []
-        for r in infos['results']:
-            for i in r['items']:
-                for p in i['packages']:
-                    self.packages.append(Package(p,self.ref))
-        common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.base_info for p in self.packages])
-        [p.update_infos(common_infos) for p in self.packages]
+        try:
+            self.packages = []
+            for r in infos.get('results',[]):
+                for i in r.get('items',[]):
+                    for p in i.get('packages',[]):
+                        self.packages.append(Package(p, self.ref))
+                        
+            if self.packages:
+                common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.base_info for p in self.packages])
+                [p.update_infos(common_infos) for p in self.packages]
+            else:
+                print(f"No packages for {self.ref}")                
+                self.inspect = call_conan("inspect", self.ref)
+        except Exception as e:
+            print(f"Failed to get packages for {self.ref}:{e}")
 
     def to_treeview(self):
-        return {'text':self.ref,'state.expanded':False,'nodes': [p.to_treeview() for p in self.packages]}
+        return {'text': self.ref, 'state.expanded': False, \
+            'nodes': [{'text':'inspect', 'nodes':dict_to_tree(self.inspect)}] + \
+                [p.to_treeview() for p in self.packages]}
 
 class Package:
     def __init__(self, infos: dict, reference: str):
@@ -74,10 +86,10 @@ class Package:
         self.name = self.name.replace("'","")
 
         def construct_args(key):
-            if opts := self.base_info.get(key):
-                for k, v in opts.items():
-                    if v:
-                        return [f"-{key[0]}",f"{k}={v}"]
+            opts = self.base_info.get(key,[])
+            for k, v in opts.items():
+                if v:
+                    return [f"-{key[0]}",f"{k}={v}"]
             return []
 
         args = construct_args('options')
@@ -131,6 +143,8 @@ def dict_to_tree(info: dict,keys_to_ignore=[],**kwargs):
         if isinstance(v, dict):
             out.append({'text': str(k), 'nodes': dict_to_tree(v,**kwargs),**kwargs})
         else:
+            if isinstance(v,str):
+                v = v.replace('\\','/')
             tmp = {'text': f"{k} = {v}"}
             if k.lower() == "url":
                 tmp['href'] = v
@@ -138,7 +152,12 @@ def dict_to_tree(info: dict,keys_to_ignore=[],**kwargs):
                 if v.startswith("http"):
                     tmp['href'] = v
                 if os.path.isdir(v) or os.path.isfile(v):
-                    tmp['href'] = f'http://127.0.0.1:5000/{v}'
+                    if os.path.isfile(os.path.join(v, '.conan_link')):
+                        with open(os.path.join(v, '.conan_link'), 'r') as f:
+                            path = f.read().replace(os.sep,'/')
+                            tmp['href'] = f'http://127.0.0.1:5000/{path}'
+                    else:
+                        tmp['href'] = f'http://127.0.0.1:5000/{v}'
 
             color_node(v,tmp)
             tmp = {**tmp,**kwargs}

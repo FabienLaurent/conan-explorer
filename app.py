@@ -16,11 +16,15 @@ def get_all_info():
     list_package = package.call_conan("search")
     for r in list_package['results']:
         items = r['items']
-        for i in items:
+        for n,i in enumerate(items):
+            print(f"{n}/{len(items)} : {i['recipe']['id']}")
+            update_info(i)
+            """
             print("starting threads")
             thread = Thread(target=update_info, args=(i,))
             thread.daemon = True
             thread.start()
+            """
 
 @app.route('/')
 def index():
