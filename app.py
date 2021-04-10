@@ -1,30 +1,26 @@
 from flask import Flask, render_template, request
 from flask_autoindex import AutoIndex
 import package
-from threading import Thread
+import asyncio
 
 app = Flask(__name__)
 
 data = []
 
-def update_info(d):
-    global data,app
-    r = package.Reference(d)
-    data.append(r.to_treeview())    
-
-def get_all_info():
-    list_package = package.call_conan("search")
-    for r in list_package['results']:
+async def get_all_info():
+    list_package_info = await package.call_conan("search")
+    packages = []
+    for r in list_package_info['results']:
         items = r['items']
-        for n,i in enumerate(items):
-            print(f"{n}/{len(items)} : {i['recipe']['id']}")
-            update_info(i)
-            """
-            print("starting threads")
-            thread = Thread(target=update_info, args=(i,))
-            thread.daemon = True
-            thread.start()
-            """
+        for i in items:
+            packages.append(package.Reference(i))
+            
+    print(packages)
+    await asyncio.gather(*[p.init() for p in packages])
+    
+    global data,app
+    [data.append(p.to_treeview()) for p in packages]
+
 
 @app.route('/')
 def index():
@@ -32,7 +28,7 @@ def index():
 
 AutoIndex(app, browse_root="/")    
 
-get_all_info()
+asyncio.run(get_all_info())
 
 if __name__ == "__main__":    
     app.run(debug=True)

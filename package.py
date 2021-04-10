@@ -5,11 +5,14 @@ import os
 from icecream import ic
 from functools import reduce
 import pdb
-def call_conan(*args):
+import asyncio
+
+async def call_conan(*args):
     out = {}
     tmp = tempfile.mktemp()
     cmd = ["conan"] + list(args) + ["--json", tmp]
-    subprocess.call(cmd, stdout=open(os.devnull, 'wb'))
+    proc = await asyncio.create_subprocess_shell(' '.join(cmd), stdout=open(os.devnull, 'wb'))
+    await proc.communicate()
     if not os.path.isfile(tmp):
         return {'error':'conan info failed'}
     else:    
@@ -22,10 +25,14 @@ class Reference:
     def __init__(self, infos: dict):
         self.ref = infos['recipe']['id']
         self.inspect = {}
-        self.get_packages()
+
+    async def init(self):
+        await self.get_packages()
+        return True
         
-    def get_packages(self):
-        infos = call_conan("search", self.ref)
+        
+    async def get_packages(self):
+        infos = await call_conan("search", self.ref)
         try:
             self.packages = []
             for r in infos.get('results',[]):
@@ -35,10 +42,10 @@ class Reference:
                         
             if self.packages:
                 common_infos = reduce(lambda x, y: dictdiff(x, y, only_common=True), [p.base_info for p in self.packages])
-                [p.update_infos(common_infos) for p in self.packages]
+                [await p.update_infos(common_infos) for p in self.packages]
             else:
                 print(f"No packages for {self.ref}")                
-                self.inspect = call_conan("inspect", self.ref)
+                self.inspect = await call_conan("inspect", self.ref)
         except Exception as e:
             print(f"Failed to get packages for {self.ref}:{e}")
 
@@ -62,7 +69,7 @@ class Package:
         common = {'text': self.name, 'nodes': base_info_txt+ extra_info_txt}
         return(common)
         
-    def update_infos(self, common: dict):
+    async def update_infos(self, common: dict):
         assert isinstance(common,dict)
         _, self.unique_infos, _ = dictdiff(self.base_info, common)
         
@@ -95,8 +102,9 @@ class Package:
         args = construct_args('options')
         if not args:
             args = construct_args('settings')
-        
-        self.extra_info = call_conan("info","--paths",self.ref,*args)[0]
+
+        out = await call_conan("info","--paths",self.ref,*args)
+        self.extra_info = out[0]
         
 
 def dictdiff(d1, d2, only_common=False):    
