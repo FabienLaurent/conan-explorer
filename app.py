@@ -15,7 +15,6 @@ async def get_all_info():
         for i in items:
             packages.append(package.Reference(i))
             
-    print(packages)
     await asyncio.gather(*[p.init() for p in packages])
     
     global data,app

@@ -51,7 +51,7 @@ class Reference:
 
     def to_treeview(self):
         return {'text': self.ref, 'state.expanded': False, \
-            'nodes': [{'text':'inspect', 'nodes':dict_to_tree(self.inspect)}] + \
+            'nodes': [{'text':'inspect', 'nodes':dict_to_tree(self.inspect)}] if self.inspect else [] + \
                 [p.to_treeview() for p in self.packages]}
 
 class Package:
@@ -103,8 +103,8 @@ class Package:
         if not args:
             args = construct_args('settings')
 
-        out = await call_conan("info","--paths",self.ref,*args)
-        self.extra_info = out[0]
+        out = await call_conan("info", "--paths", self.ref, *args)
+        self.extra_info = next(filter(lambda x: x['reference'] == self.ref, out))
         
 
 def dictdiff(d1, d2, only_common=False):    
@@ -164,6 +164,7 @@ def dict_to_tree(info: dict,keys_to_ignore=[],**kwargs):
                         with open(os.path.join(v, '.conan_link'), 'r') as f:
                             path = f.read().replace(os.sep,'/')
                             tmp['href'] = f'http://127.0.0.1:5000/{path}'
+                            tmp['text'] += f" [{path}]"
                     else:
                         tmp['href'] = f'http://127.0.0.1:5000/{v}'
 
